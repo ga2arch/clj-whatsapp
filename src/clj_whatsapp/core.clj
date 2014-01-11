@@ -37,12 +37,11 @@
 (defn get-msgs []
   (select messages
           (fields :data
-                  [:remote_resource :user_jid]
-                  [:key_remote_jid :jid]
                   :received_timestamp
-                  :wa_contacts.display_name)
-          (join wa_contacts (= :wa_contacts.jid :jid))
-          (where (like :user_jid ""))
+                  :wa_contacts.display_name
+                  [:key_remote_jid :jid])
+          (join wa_contacts (= :wa_contacts.jid :key_remote_jid))
+          (where (like :remote_resource ""))
           (order :received_timestamp :DESC)))
 
 (defn get-groups []
@@ -58,7 +57,7 @@
                     (order :received_timestamp :DESC))]
     (reduce (fn [m msg]
               (let [key (keyword (:group_name msg))
-               val (get m key)]
+                    val (get m key)]
                 (if (contains? m key)
                   (assoc m key (conj val (dissoc msg :group_name)))
                   (assoc m key [(dissoc msg :group_name)])))) {} msgs)))

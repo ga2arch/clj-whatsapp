@@ -44,7 +44,7 @@
           (where (like :remote_resource ""))
           (order :received_timestamp :DESC)))
 
-(defn get-groups []
+(defn get-groups-with-messages []
   (let [msgs
         (select messages
                 (fields :data

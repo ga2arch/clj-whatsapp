@@ -11,47 +11,57 @@
 (defn fetch-database []
   (sh "adb" "root")
   (sh "adb" "pull" msgstore-path)
-  (sh "adb" "pull" wa-path))
+  (sh "adb" "pull" wa-path)
+  (sh "sh" "-c" "sqlite3 msgstore.db .dump | sqlite3 whatsapp.db")
+  (sh "sh" "-c" "sqlite3 wa.db .dump | sqlite3 whatsapp.db")
+  (sh "rm" "msgstore.db")
+  (sh "sh" "-c" "rm wa.db*"))
 
 (fetch-database)
 
-(def msgstore (sqlite3 {:db "msgstore.db"}))
-(defdb msg-db msgstore)
-
-(defentity chat_list
-  (database msg-db))
-(defentity messages
-  (database msg-db)
-  (entity-fields :_id :data :key_remote_jid
-                 :remote_resource
-                 :received_timestamp))
-
-(def wa (sqlite3 {:db "wa.db"}))
+(def wa (sqlite3 {:db "whatsapp.db"}))
 (defdb wa-db wa)
 
 (defentity wa_contacts
-  (database wa-db))
+  (pk :jid)
+  (entity-fields :display_name))
 
-(def msgs
+(defentity chat_list
+  (pk :key_remote_jid)
+  (entity-fields :subject))
+
+(defentity messages
+  (entity-fields :_id :data
+                 :received_timestamp))
+
+(defn get-msgs []
   (select messages
-          (fields :_id :data :key_remote_jid
-                 [:remote_resource :jid]
-                 :received_timestamp)
+          (fields :data
+                  [:remote_resource :user_jid]
+                  [:key_remote_jid :jid]
+                  :received_timestamp
+                  :wa_contacts.display_name)
+          (join wa_contacts (= :wa_contacts.jid :jid))
+          (where (like :user_jid ""))
           (order :received_timestamp :DESC)))
 
-(defn get-name-by-jid [jid]
-  (-> (select wa_contacts
-          (fields :display_name)
-          (where {:jid jid})
-          (limit 1))
-      (first)
-      (:display_name)))
-
-(defn process-msg [{:keys [data jid key_from_me]}]
-  (if (= key_from_me 1)
-    {:jid jid :data data :name "Gabriele Carrettoni"}
-    (let [name (get-name-by-jid jid)]
-      {:jid jid :data data :name name})))
+(defn get-groups []
+  (let [msgs (select messages
+                    (fields :data
+                            [:remote_resource :user_jid]
+                            :received_timestamp
+                            [:chat_list.subject :group_name]
+                            :wa_contacts.display_name)
+                    (join wa_contacts (= :wa_contacts.jid :user_jid))
+                    (join chat_list (= :chat_list.key_remote_jid :key_remote_jid))
+                    (where (not (like :user_jid "")))
+                    (order :received_timestamp :DESC))]
+    (reduce (fn [m msg]
+              (let [key (keyword (:group_name msg))
+               val (get m key)]
+                (if (contains? m key)
+                  (assoc m key (conj val (dissoc msg :group_name)))
+                  (assoc m key [(dissoc msg :group_name)])))) {} msgs)))
 
 (defn save-last-msg-id [msgs]
   (spit "last-msg-id" (:_id (first msgs))))
@@ -62,13 +72,5 @@
     (catch Exception e
       0)))
 
-(defn get-last-messages [last-id]
-  (map process-msg
-       (select messages
-               (fields [:key_remote_jid :jid] :data :key_from_me)
-               (where {:_id [> last-id]}))))
-
 ;;(save-last-msg msgs)
 ;;(load-last-msg-id)
-(first msgs)
-(get-last-messages (load-last-msg-id))

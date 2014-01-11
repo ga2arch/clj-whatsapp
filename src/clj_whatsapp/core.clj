@@ -45,23 +45,25 @@
           (order :received_timestamp :DESC)))
 
 (defn get-groups []
-  (let [msgs (select messages
-                    (fields :data
-                            [:remote_resource :user_jid]
-                            :received_timestamp
-                            [:chat_list.subject :group_name]
-                            :wa_contacts.display_name)
-                    (join wa_contacts (= :wa_contacts.jid :user_jid))
-                    (join chat_list (= :chat_list.key_remote_jid :key_remote_jid))
-                    (where (not (like :user_jid "")))
-                    (order :received_timestamp :DESC))]
-    (reduce (fn [m msg]
-              (let [key (keyword (:group_name msg))
-                    val (get m key)
-                    nmsg (dissoc msg :group_name)]
-                (if (contains? m key)
-                  (assoc m key (conj val nmsg))
-                  (assoc m key [nmsg])))) {} msgs)))
+  (let [msgs
+        (select messages
+                (fields :data
+                        [:remote_resource :user_jid]
+                        :received_timestamp
+                        [:chat_list.subject :group_name]
+                        :wa_contacts.display_name)
+                (join wa_contacts (= :wa_contacts.jid :user_jid))
+                (join chat_list (= :chat_list.key_remote_jid :key_remote_jid))
+                (where (not (like :user_jid "")))
+                (order :received_timestamp :DESC))]
+    (reduce
+     (fn [m msg]
+       (let [key (keyword (:group_name msg))
+             val (get m key)
+             nmsg (dissoc msg :group_name)]
+         (if (contains? m key)
+           (assoc m key (conj val nmsg))
+           (assoc m key [nmsg])))) {} msgs)))
 
 (defn save-last-msg-id [msgs]
   (spit "last-msg-id" (:_id (first msgs))))

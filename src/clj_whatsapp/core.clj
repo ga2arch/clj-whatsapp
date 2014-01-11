@@ -22,9 +22,9 @@
   (database msg-db))
 (defentity messages
   (database msg-db)
-  (fields :_id :data :key_remote_jid
-          :remote_resource
-          :received_timestamp))
+  (entity-fields :_id :data :key_remote_jid
+                 :remote_resource
+                 :received_timestamp))
 
 (def wa (sqlite3 {:db "wa.db"}))
 (defdb wa-db wa)
@@ -47,9 +47,11 @@
       (first)
       (:display_name)))
 
-(defn process-msg [{:keys [data jid]}]
-  (let [name (get-name-by-jid jid)]
-    (println (str name ": " data))))
+(defn process-msg [{:keys [data jid key_from_me]}]
+  (if (= key_from_me 1)
+    {:jid jid :data data :name "Gabriele Carrettoni"}
+    (let [name (get-name-by-jid jid)]
+      {:jid jid :data data :name name})))
 
 (defn save-last-msg-id [msgs]
   (spit "last-msg-id" (:_id (first msgs))))
@@ -61,8 +63,10 @@
       0)))
 
 (defn get-last-messages [last-id]
-  (select messages
-          (where {:_id [> last-id]})))
+  (map process-msg
+       (select messages
+               (fields [:key_remote_jid :jid] :data :key_from_me)
+               (where {:_id [> last-id]}))))
 
 ;;(save-last-msg msgs)
 ;;(load-last-msg-id)

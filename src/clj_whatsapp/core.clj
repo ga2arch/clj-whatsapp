@@ -57,10 +57,11 @@
                     (order :received_timestamp :DESC))]
     (reduce (fn [m msg]
               (let [key (keyword (:group_name msg))
-                    val (get m key)]
+                    val (get m key)
+                    nmsg (dissoc msg :group_name)]
                 (if (contains? m key)
-                  (assoc m key (conj val (dissoc msg :group_name)))
-                  (assoc m key [(dissoc msg :group_name)])))) {} msgs)))
+                  (assoc m key (conj val nmsg))
+                  (assoc m key [nmsg])))) {} msgs)))
 
 (defn save-last-msg-id [msgs]
   (spit "last-msg-id" (:_id (first msgs))))

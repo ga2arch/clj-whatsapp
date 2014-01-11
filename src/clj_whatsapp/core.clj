@@ -34,7 +34,7 @@
   (entity-fields :_id :data
                  :received_timestamp))
 
-(defn get-msgs []
+(defn get-messages []
   (select messages
           (fields :data
                   :received_timestamp
